@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <de.content_space.nightcolors.TimePickerPreference
+        android:key="pref_start"
+        android:title="@string/pref_start"
+        android:summary="@string/pref_start_summ"
+        android:defaultValue="480"
+        />
+    <de.content_space.nightcolors.TimePickerPreference
+        android:key="pref_end"
+        android:title="@string/pref_end"
+        android:summary="@string/pref_start_end"
+        android:defaultValue="1200"
+        />
+</PreferenceScreen>

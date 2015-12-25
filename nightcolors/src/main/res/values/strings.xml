@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Night Colors</string>
+    <string name="action_settings">Settings</string>
+    <string name="pref_start">Start of the Day</string>
+    <string name="pref_start_summ">When the day colors shall be set</string>
+    <string name="pref_end">End of the day</string>
+    <string name="pref_start_end">When the night colors shall be set</string>
+</resources>
