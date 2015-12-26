@@ -7,10 +7,8 @@ import android.app.Service;
 import android.content.Intent;
 import android.content.Context;
 import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.preference.PreferenceManager;
 import android.util.Log;
 
 import java.io.FileNotFoundException;
@@ -68,56 +66,26 @@ public class SetScreenColorService extends Service {
     public static void installAlarms(Context context) {
         AlarmManager alarmMgr = (AlarmManager)context.getSystemService(Context.ALARM_SERVICE);
 
-        SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(context);
-
-        int startTime = sharedPref.getInt(NightColorsSettingsFragment.KEY_PREF_START, 480);
-        int startHour = startTime/60;
-        int startMinute = startTime%60;
-
-        int endTime = sharedPref.getInt(NightColorsSettingsFragment.KEY_PREF_END, 1200);
-        int endHour = endTime/60;
-        int endMinute = endTime%60;
-
-        // Set the alarm to start at approximately 2:00 p.m.
-        Calendar startCalendar = Calendar.getInstance();
-        startCalendar.set(Calendar.HOUR_OF_DAY, startHour);
-        startCalendar.set(Calendar.MINUTE, startMinute);
-
-        Calendar endCalendar = Calendar.getInstance();
-        endCalendar.set(Calendar.HOUR_OF_DAY, endHour);
-        endCalendar.set(Calendar.MINUTE, endMinute);
-
-        Calendar currentCalendar = Calendar.getInstance();
+        NightTimeHelper helper = new NightTimeHelper(context);
 
         // if we are before the start of the day, set night colors
-        if (currentCalendar.before(startCalendar)) {
+        if (helper.isDay()) {
+            sendWakefulWork(context, ACTION_DAY);
+        } else {
             sendWakefulWork(context, ACTION_NIGHT);
         }
 
-        // if we are after the start day, move next event to tomorrow
-        if (currentCalendar.after(startCalendar)) {
-            startCalendar.roll(Calendar.DATE, 1);
-            // if it is still before night, set colors to day
-            if (currentCalendar.before(endCalendar)) {
-                sendWakefulWork(context, ACTION_DAY);
-            }
-        }
-
-        // if we are after the end of the day, set night colors and postpone night colors to tomorrow.
-        if (currentCalendar.after(endCalendar)) {
-            endCalendar.roll(Calendar.DATE, 1);
-            sendWakefulWork(context, ACTION_NIGHT);
-        }
-
+        Calendar beginNight = helper.getBeginOfNextNight();
         // With setInexactRepeating(), you have to use one of the AlarmManager interval
         // constants--in this case, AlarmManager.INTERVAL_DAY.
-        alarmMgr.setInexactRepeating(AlarmManager.RTC, endCalendar.getTimeInMillis(),
+        alarmMgr.setInexactRepeating(AlarmManager.RTC, beginNight.getTimeInMillis(),
                 AlarmManager.INTERVAL_DAY, getPendingNightIntent(context));
-        Log.i("NightColors", "Set night intent on " + endCalendar.get(Calendar.DAY_OF_MONTH) + ". at " + endCalendar.get(Calendar.HOUR_OF_DAY));
+        Log.i("NightColors", "Set night intent on " + beginNight.get(Calendar.DAY_OF_MONTH) + ". at " + beginNight.get(Calendar.HOUR_OF_DAY));
 
-        alarmMgr.setInexactRepeating(AlarmManager.RTC, startCalendar.getTimeInMillis(),
+        Calendar beginDay = helper.getBeginOfNextDay();
+        alarmMgr.setInexactRepeating(AlarmManager.RTC, helper.getBeginOfNextDay().getTimeInMillis(),
                 AlarmManager.INTERVAL_DAY, getPendingDayIntent(context));
-        Log.i("NightColors", "Set day intent on " + startCalendar.get(Calendar.DAY_OF_MONTH) + ". at " + startCalendar.get(Calendar.HOUR_OF_DAY));
+        Log.i("NightColors", "Set day intent on " + beginDay.get(Calendar.DAY_OF_MONTH) + ". at " + beginDay.get(Calendar.HOUR_OF_DAY));
     }
 
 
