@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.IntentFilter;
 import android.os.IBinder;
 import android.os.PowerManager;
+import java.text.DateFormat;
 import android.util.Log;
 
 import java.io.FileNotFoundException;
@@ -75,17 +76,19 @@ public class SetScreenColorService extends Service {
             sendWakefulWork(context, ACTION_NIGHT);
         }
 
+        DateFormat dateFormat = DateFormat.getDateTimeInstance();
+
         Calendar beginNight = helper.getBeginOfNextNight();
         // With setInexactRepeating(), you have to use one of the AlarmManager interval
         // constants--in this case, AlarmManager.INTERVAL_DAY.
         alarmMgr.setInexactRepeating(AlarmManager.RTC, beginNight.getTimeInMillis(),
                 AlarmManager.INTERVAL_DAY, getPendingNightIntent(context));
-        Log.i("NightColors", "Set night intent on " + beginNight.get(Calendar.DAY_OF_MONTH) + ". at " + beginNight.get(Calendar.HOUR_OF_DAY));
+        Log.i("NightColors", "Set night intent at " + dateFormat.format(beginNight.getTime()));
 
         Calendar beginDay = helper.getBeginOfNextDay();
         alarmMgr.setInexactRepeating(AlarmManager.RTC, helper.getBeginOfNextDay().getTimeInMillis(),
                 AlarmManager.INTERVAL_DAY, getPendingDayIntent(context));
-        Log.i("NightColors", "Set day intent on " + beginDay.get(Calendar.DAY_OF_MONTH) + ". at " + beginDay.get(Calendar.HOUR_OF_DAY));
+        Log.i("NightColors", "Set day intent at " + dateFormat.format(beginDay.getTime()));
     }
 
 
