@@ -6,6 +6,7 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
@@ -19,13 +20,19 @@ import java.util.Calendar;
  * <p/>
  * TODO: Customize class - update intent actions, extra parameters and static
  * helper methods.
+ *
+ * This uses some code from CommonsWare Android Components: WakefulIntentService
+ * @see <a href="https://github.com/commonsguy/cwac-wakeful">github.com/commonsguy/cwac-wakeful</a>
  */
 public class SetScreenColorService extends IntentService {
-    private static final String ACTION_NIGHT = "de.content_space.nightcolors.action.NIGHT";
-    private static final String ACTION_DAY = "de.content_space.nightcolors.action.DAY";
+    public static final String ACTION_NIGHT = "de.content_space.nightcolors.action.NIGHT";
+    public static final String ACTION_DAY = "de.content_space.nightcolors.action.DAY";
     private static final String BASE_PATH = "/sys/class/misc/samoled_color/";
     private static final String GREEN_PATH = BASE_PATH + "green_multiplier";
     private static final String BLUE_PATH = BASE_PATH + "blue_multiplier";
+
+    static final String NAME= "de.content_space.nightcolors.SetScreenColorService";
+    private static volatile PowerManager.WakeLock lockStatic=null;
 
 
     /**
@@ -35,9 +42,9 @@ public class SetScreenColorService extends IntentService {
      * @see IntentService
      */
     public static PendingIntent getPendingNightIntent(Context context) {
-        Intent intent = new Intent(context, SetScreenColorService.class);
+        Intent intent = new Intent(context, NightColorsReceiver.class);
         intent.setAction(ACTION_NIGHT);
-        return PendingIntent.getService(context, 0, intent, 0);
+        return PendingIntent.getBroadcast(context, 0, intent, 0);
     }
 
     /**
@@ -47,9 +54,9 @@ public class SetScreenColorService extends IntentService {
      * @see IntentService
      */
     public static PendingIntent getPendingDayIntent(Context context) {
-        Intent intent = new Intent(context, SetScreenColorService.class);
+        Intent intent = new Intent(context, NightColorsReceiver.class);
         intent.setAction(ACTION_DAY);
-        return PendingIntent.getService(context, 0, intent, 0);
+        return PendingIntent.getBroadcast(context, 0, intent, 0);
     }
 
     public static void installAlarms(Context context) {
@@ -76,9 +83,24 @@ public class SetScreenColorService extends IntentService {
 
         Calendar currentCalendar = Calendar.getInstance();
 
-        // if we are during the day, schedule night event for the same day and day event for the next day
-        if (currentCalendar.after(startCalendar) && currentCalendar.after(endCalendar)) {
+        // if we are before the start of the day, set night colors
+        if (currentCalendar.before(startCalendar)) {
+            sendWakefulWork(context, ACTION_NIGHT);
+        }
+
+        // if we are after the start day, move next event to tomorrow
+        if (currentCalendar.after(startCalendar)) {
             startCalendar.roll(Calendar.DATE, 1);
+            // if it is still before night, set colors to day
+            if (currentCalendar.before(endCalendar)) {
+                sendWakefulWork(context, ACTION_DAY);
+            }
+        }
+
+        // if we are after the end of the day, set night colors and postpone night colors to tomorrow.
+        if (currentCalendar.after(endCalendar)) {
+            endCalendar.roll(Calendar.DATE, 1);
+            sendWakefulWork(context, ACTION_NIGHT);
         }
 
         // With setInexactRepeating(), you have to use one of the AlarmManager interval
@@ -92,18 +114,53 @@ public class SetScreenColorService extends IntentService {
         Log.i("NightColors", "Set day intent on " + startCalendar.get(Calendar.DAY_OF_MONTH) + ". at " + startCalendar.get(Calendar.HOUR_OF_DAY));
     }
 
+
+    synchronized private static PowerManager.WakeLock getLock(Context context) {
+        if (lockStatic == null) {
+            PowerManager mgr=
+                    (PowerManager)context.getSystemService(Context.POWER_SERVICE);
+
+            lockStatic=mgr.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, NAME);
+            lockStatic.setReferenceCounted(true);
+        }
+
+        return(lockStatic);
+    }
+
+    public static void sendWakefulWork(Context context, String action) {
+        Intent intent = new Intent(context, SetScreenColorService.class);
+        intent.setAction(action);
+        sendWakefulWork(context, intent);
+    }
+
+    public static void sendWakefulWork(Context context, Intent intent) {
+        getLock(context.getApplicationContext()).acquire();
+        context.startService(intent);
+    }
+
     public SetScreenColorService() {
         super("SetScreenColorService");
+        setIntentRedelivery(true);
     }
 
     @Override
     protected void onHandleIntent(Intent intent) {
-        if (intent != null) {
-            final String action = intent.getAction();
-            if (ACTION_NIGHT.equals(action)) {
-                handleActionNight();
-            } else if (ACTION_DAY.equals(action)) {
-                handleActionDay();
+        try {
+            if (intent != null) {
+                final String action = intent.getAction();
+                if (ACTION_NIGHT.equals(action)) {
+                    handleActionNight();
+                } else if (ACTION_DAY.equals(action)) {
+                    handleActionDay();
+                } else {
+                    Log.e("NightColors", "Error, unknown action " + action + " received");
+                }
+            }
+        } finally {
+            PowerManager.WakeLock lock=getLock(this.getApplicationContext());
+
+            if (lock.isHeld()) {
+                lock.release();
             }
         }
     }
@@ -121,6 +178,8 @@ public class SetScreenColorService extends IntentService {
             PrintWriter blueWriter = new PrintWriter(BLUE_PATH);
             blueWriter.print(200000000);
             blueWriter.close();
+
+            Log.i("NightColors", "Set night colors");
         } catch (FileNotFoundException e) {
             Log.e("NightColors", "Error setting night colors", e);
         }
@@ -139,6 +198,8 @@ public class SetScreenColorService extends IntentService {
             PrintWriter blueWriter = new PrintWriter(BLUE_PATH);
             blueWriter.print(2000000000);
             blueWriter.close();
+
+            Log.i("NightColors", "Set day colors");
         } catch (FileNotFoundException e) {
             Log.e("NightColors", "Error setting day colors", e);
         }

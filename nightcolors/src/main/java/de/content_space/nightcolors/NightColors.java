@@ -11,6 +11,8 @@ public class NightColors extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        SetScreenColorService.installAlarms(this);
+
         // Display the fragment as the main content.
         getFragmentManager().beginTransaction()
                 .replace(android.R.id.content, new NightColorsSettingsFragment())

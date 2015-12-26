@@ -3,6 +3,7 @@
     package="de.content_space.nightcolors" >
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
@@ -26,7 +27,7 @@
         </service>
 
         <receiver
-            android:name=".BootReceiver"
+            android:name=".NightColorsReceiver"
             android:enabled="true"
             android:exported="true" >
             <intent-filter>
