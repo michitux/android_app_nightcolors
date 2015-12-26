@@ -3,9 +3,12 @@ package de.content_space.nightcolors;
 import android.app.AlarmManager;
 import android.app.IntentService;
 import android.app.PendingIntent;
+import android.app.Service;
 import android.content.Intent;
 import android.content.Context;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.os.IBinder;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.util.Log;
@@ -24,7 +27,7 @@ import java.util.Calendar;
  * This uses some code from CommonsWare Android Components: WakefulIntentService
  * @see <a href="https://github.com/commonsguy/cwac-wakeful">github.com/commonsguy/cwac-wakeful</a>
  */
-public class SetScreenColorService extends IntentService {
+public class SetScreenColorService extends Service {
     public static final String ACTION_NIGHT = "de.content_space.nightcolors.action.NIGHT";
     public static final String ACTION_DAY = "de.content_space.nightcolors.action.DAY";
     private static final String BASE_PATH = "/sys/class/misc/samoled_color/";
@@ -33,6 +36,9 @@ public class SetScreenColorService extends IntentService {
 
     static final String NAME= "de.content_space.nightcolors.SetScreenColorService";
     private static volatile PowerManager.WakeLock lockStatic=null;
+
+    private NightColorsReceiver mReceiver = null;
+    private String mLastAction = null;
 
 
     /**
@@ -138,22 +144,49 @@ public class SetScreenColorService extends IntentService {
         context.startService(intent);
     }
 
-    public SetScreenColorService() {
-        super("SetScreenColorService");
-        setIntentRedelivery(true);
+    @Override
+    public IBinder onBind(Intent intent) {
+        // We don't provide binding, so return null
+        return null;
     }
 
     @Override
-    protected void onHandleIntent(Intent intent) {
+    public int onStartCommand(Intent intent, int flags, int startId) {
         try {
             if (intent != null) {
                 final String action = intent.getAction();
-                if (ACTION_NIGHT.equals(action)) {
-                    handleActionNight();
-                } else if (ACTION_DAY.equals(action)) {
-                    handleActionDay();
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+
+                if (pm.isScreenOn()) {
+                    String originalAction = action;
+
+                    if (action.equals(Intent.ACTION_SCREEN_ON) && mLastAction != null) {
+                        originalAction = mLastAction;
+                    }
+
+                    if (ACTION_NIGHT.equals(originalAction)) {
+                        handleActionNight();
+                    } else if (ACTION_DAY.equals(originalAction)) {
+                        handleActionDay();
+                    } else {
+                        Log.e("NightColors", "Error, unknown action " + originalAction + " received");
+                    }
+
+                    if (mReceiver != null) {
+                        unregisterReceiver(mReceiver);
+                        mReceiver = null;
+                    }
+
+                    stopSelf();
                 } else {
-                    Log.e("NightColors", "Error, unknown action " + action + " received");
+                    if (mReceiver == null) {
+                        mReceiver = new NightColorsReceiver();
+                    }
+
+                    registerReceiver(mReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
+                    mLastAction = action;
+
+                    Log.i("NightColors", "Cannot set colors while screen is off, scheduled receiver for screen on event");
                 }
             }
         } finally {
@@ -163,7 +196,18 @@ public class SetScreenColorService extends IntentService {
                 lock.release();
             }
         }
+
+        return START_STICKY;
     }
+
+
+    @Override
+    public void onDestroy() {
+        if (mReceiver != null) {
+            unregisterReceiver(mReceiver);
+        }
+    }
+
 
     /**
      * Handle action Day in the provided background thread with the provided
