@@ -120,16 +120,37 @@ public class SetScreenColorService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        PowerManager.WakeLock lock = getLock(this.getApplicationContext());
+
+        // make sure that we hold the lock even if the service should have been restarted
+        if (!lock.isHeld()) {
+            lock.acquire();
+        }
+
+        int result = START_REDELIVER_INTENT;
+
         try {
             if (intent != null) {
                 final String action = intent.getAction();
                 PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
 
+                // handle the action directly if the screen is on
                 if (pm.isScreenOn()) {
+                    // The original action that should be executed with screen on
                     String originalAction = action;
 
-                    if (action.equals(Intent.ACTION_SCREEN_ON) && mLastAction != null) {
-                        originalAction = mLastAction;
+                    // If this is the screen on intent, recover the original action which might be saved (or not)
+                    if (action.equals(Intent.ACTION_SCREEN_ON)) {
+                        if (mLastAction != null) {
+                            originalAction = mLastAction;
+                        } else { // recover action by comparing the current time to the configured times
+                            NightTimeHelper helper = new NightTimeHelper(getApplicationContext());
+                            if (helper.isDay()) {
+                                originalAction = ACTION_DAY;
+                            } else {
+                                originalAction = ACTION_NIGHT;
+                            }
+                        }
                     }
 
                     if (ACTION_NIGHT.equals(originalAction)) {
@@ -140,32 +161,38 @@ public class SetScreenColorService extends Service {
                         Log.e("NightColors", "Error, unknown action " + originalAction + " received");
                     }
 
+                    // Clean up: unregister receiver, stop service
                     if (mReceiver != null) {
                         unregisterReceiver(mReceiver);
                         mReceiver = null;
                     }
 
-                    stopSelf();
+                    stopSelf(startId);
+                    result = START_NOT_STICKY;
                 } else {
+                    // if the screen is off register a receiver, but only if it does not exist yet
+                    // this might be the case if the screen remained off between two alarms
                     if (mReceiver == null) {
                         mReceiver = new NightColorsReceiver();
+                        registerReceiver(mReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
+                        Log.i("NightColors", "Cannot set colors while screen is off, scheduled receiver for screen on event");
                     }
 
-                    registerReceiver(mReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
-                    mLastAction = action;
-
-                    Log.i("NightColors", "Cannot set colors while screen is off, scheduled receiver for screen on event");
+                    // Store the action so we know what to do when the screen is turned on.
+                    // When the service is restarted we might receive again the ACTION_SCREEN_ON intent but the screen might still be off,
+                    // in this case do not store any action (will be recovered above instead).
+                    if (ACTION_DAY.equals(action) || ACTION_NIGHT.equals(action)) {
+                        mLastAction = action;
+                    }
                 }
             }
         } finally {
-            PowerManager.WakeLock lock=getLock(this.getApplicationContext());
-
             if (lock.isHeld()) {
                 lock.release();
             }
         }
 
-        return START_STICKY;
+        return result;
     }
 
 
@@ -173,6 +200,7 @@ public class SetScreenColorService extends Service {
     public void onDestroy() {
         if (mReceiver != null) {
             unregisterReceiver(mReceiver);
+            mReceiver = null;
         }
     }
 
