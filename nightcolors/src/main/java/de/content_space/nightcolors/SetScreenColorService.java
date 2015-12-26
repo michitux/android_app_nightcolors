@@ -17,11 +17,9 @@ import java.io.PrintWriter;
 import java.util.Calendar;
 
 /**
- * An {@link IntentService} subclass for handling asynchronous task requests in
- * a service on a separate handler thread.
- * <p/>
- * TODO: Customize class - update intent actions, extra parameters and static
- * helper methods.
+ * This is the service that does the actual work of setting screen colors.
+ *
+ * This service can run in the background in order to wait for the screen to be turned on.
  *
  * This uses some code from CommonsWare Android Components: WakefulIntentService
  * @see <a href="https://github.com/commonsguy/cwac-wakeful">github.com/commonsguy/cwac-wakeful</a>
