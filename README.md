@@ -10,7 +10,9 @@ First tests indicate that the app seems to work for me but its software design m
 
 * Set the colors (currently fixed values are used)
 * Alert the user on errors (e.g. if the used color control interface is not supported on the user's device)
-* Handle situations where the start time is before the end time
-* Handle all situations where the app and especially its services are killed
 
-Due to how the color control interface is implemented in CM11 for Galaxy Nexus, the display needs to be on when the colors are set. When the display is off when at the scheduled time, the app currently starts a background service that waits for the screen to turn on. This might not be the best design and most probably fails when the background service is killed or restarted.
+Due to how the color control interface is implemented in CM11 for Galaxy Nexus, the display needs to be on when the colors are set.
+When the display is off when at the scheduled time, the app currently starts a background service that waits for the screen to turn on.
+This might not be the best design but I couldn't find a better solution.
+The app should be relatively robust to the background service's being restarted but I did not test this.
+Similarly the settings activity might have problems with restarts.
