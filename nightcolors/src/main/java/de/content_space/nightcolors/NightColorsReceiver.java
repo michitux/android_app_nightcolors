@@ -9,7 +9,7 @@ public class NightColorsReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         final String action = intent.getAction();
 
-        if (action.equals("android.intent.action.BOOT_COMPLETED")) {
+        if (action.equals(Intent.ACTION_BOOT_COMPLETED)) {
             SetScreenColorService.installAlarms(context);
         } else {
             SetScreenColorService.sendWakefulWork(context, action);
